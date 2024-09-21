@@ -6,13 +6,13 @@ RUN apt-get update && \
     apt-get install -y git binutils build-essential && \
     pip install pyinstaller
 
-# Install Python dependencies from requirements.txt
-COPY requirements.txt .
-RUN pip install -r requirements.txt
 
 # Set working directory and build the executable using pyinstaller
 WORKDIR /src
 COPY . .
+# Install Python dependencies from requirements.txt
+RUN pip install -r requirements.txt
+
 RUN pyinstaller --specpath /app --distpath /app/dist --workpath /app/work \
     --hidden-import tiktoken_ext.openai_public \
     --onefile --name telegramus main.py

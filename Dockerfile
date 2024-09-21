@@ -1,37 +1,41 @@
-# syntax=docker/dockerfile:labs
-
-# Dockerfile for GPT-Telegramus using multi-stage build
-# Use buildkit syntax labs
-# https://github.com/moby/buildkit
-
+# Use official Python image
 FROM python:3.10-slim AS build
-RUN --mount=type=cache,target=/root/.cache/pip \
-    apt-get update && \
+
+# Install necessary system dependencies and pyinstaller
+RUN apt-get update && \
     apt-get install -y git binutils build-essential && \
     pip install pyinstaller
 
-# Install dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    --mount=type=bind,source=requirements.txt,target=requirements.txt \
-    pip install -r requirements.txt
+# Install Python dependencies from requirements.txt
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
+# Set working directory and build the executable using pyinstaller
 WORKDIR /src
-RUN --mount=type=bind,source=. \
-    pyinstaller --specpath /app --distpath /app/dist --workpath /app/work \
+COPY . .
+RUN pyinstaller --specpath /app --distpath /app/dist --workpath /app/work \
     --hidden-import tiktoken_ext.openai_public \
     --onefile --name telegramus main.py
 
-# Build application image
-FROM alpine
+# Start a new stage for the final image
+FROM alpine:latest
+
+# Set environment variables
 ENV TELEGRAMUS_CONFIG_FILE "/app/config.json"
 ENV PATH /app:$PATH
 
-COPY --link --from=python:3.10-slim /li[b] /lib
-COPY --link --from=python:3.10-slim /lib6[4] /lib64
-COPY --link --from=build /app/dist/telegramus /app/telegramus
+# Copy necessary libraries from the build stage
+COPY --from=build /lib /lib
+COPY --from=build /lib64 /lib64
 
+# Copy the built application from the build stage
+COPY --from=build /app/dist/telegramus /app/telegramus
+
+# Set the working directory and copy other necessary files
 WORKDIR /app
-COPY config.json module_configs/ langs/ /app/
+COPY config.json /app/
+COPY module_configs/ /app/module_configs/
+COPY langs/ /app/langs/
 
-# Run main script
-CMD ["telegramus"]
+# Set the default command to run the application
+CMD ["./telegramus"]
